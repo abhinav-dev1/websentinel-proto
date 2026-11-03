@@ -153,7 +153,7 @@ Within 1–2 seconds:
 - 📋 3–4 red log entries stream into the event panel in quick succession
 - 📊 The threat counter in the status bar increments
 
-This moment is the demo's centerpiece.
+
 
 ---
 
@@ -172,7 +172,7 @@ This moment is the demo's centerpiece.
 
 ## Project Structure
 
-```
+
 websentinel/
 ├── backend/
 │   ├── app/
@@ -198,8 +198,6 @@ websentinel/
 ├── docker-compose.yml
 ├── README.md
 └── .gitignore
-```
 
----
 
 
