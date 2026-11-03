@@ -22,7 +22,7 @@ import httpx
 
 # ── Configuration ────────────────────────────────────────────────────────────
 DEFAULT_BACKEND = "http://localhost:8000"
-
+# WebSentinel updated version
 ATTACKER = {
     "id": "node-99",
     "ip": "10.0.0.66",
