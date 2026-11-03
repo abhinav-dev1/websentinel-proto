@@ -1069,14 +1069,6 @@ html, body, #root {
   border: 1px solid #C4122F;
 }
 
-.attack-log__record-count {
-  margin-left: auto;
-  font-size: 12px;
-  font-weight: 700;
-  color: #F2F6F4;
-  flex-shrink: 0;
-}
-
 /* ── Line 2: Chips ─────────────────────────────────────────────────────── */
 
 .attack-log__record-chips {

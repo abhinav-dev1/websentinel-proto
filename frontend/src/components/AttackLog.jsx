@@ -2,18 +2,15 @@ import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react
 import { downloadCsv } from '../lib/attackLogCsv';
 
 /**
- * Build a concise "web-srv-01 ×4 · api-gateway ×1" summary.
+ * Build a "web-srv-01, api-gateway" summary (each server listed once, no counts).
  */
 function buildServerSummary(records) {
-  const tally = new Map();
+  const seen = new Set();
   for (const r of records) {
     const key = r.targetHost || '-';
-    tally.set(key, (tally.get(key) || 0) + r.count);
+    seen.add(key);
   }
-  return [...tally.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .map(([host, n]) => `${host} ×${n}`)
-    .join(' · ');
+  return [...seen].join(', ');
 }
 
 /**
@@ -33,7 +30,7 @@ function AttackRecord({ record, onClickRecord }) {
       tabIndex={0}
       onKeyDown={(e) => e.key === 'Enter' && onClickRecord(record)}
     >
-      {/* Line 1: time, attack name in bold, badge, ×N */}
+      {/* Line 1: time, attack name in bold, badge */}
       <div className="attack-log__record-line1">
         <span className="attack-log__record-time">{record.time}</span>
         <span className="attack-log__record-name">{record.attackName}</span>
@@ -46,9 +43,6 @@ function AttackRecord({ record, onClickRecord }) {
         >
           {record.badgeText}
         </span>
-        {record.count > 1 && (
-          <span className="attack-log__record-count">×{record.count}</span>
-        )}
       </div>
 
       {/* Line 2: [ATTACKER IP · source]  →  [TARGET host · IP] */}
@@ -82,7 +76,37 @@ export default function AttackLog({ records, onClear, onClickRecord, reducedMoti
   const [boxStyle, setBoxStyle] = useState({});
   const boxRef = useRef(null);
   const btnRef = useRef(null);
+  const listRef = useRef(null);
   const count = records.length;
+
+  // Preserve scroll position when new cards arrive at the top.
+  // When the user is scrolled to the top (scrollTop === 0), keep them at top
+  // (the browser does this naturally for prepended DOM children).
+  // When scrolled down, we pin their view so new cards don't jump them.
+  const prevCountRef = useRef(count);
+  useLayoutEffect(() => {
+    const listEl = listRef.current;
+    if (!listEl) return;
+    const prevCount = prevCountRef.current;
+    const addedCards = count - prevCount;
+    prevCountRef.current = count;
+
+    // Only compensate when new cards were prepended and the user is NOT at the top
+    if (addedCards > 0 && listEl.scrollTop > 0) {
+      // Each card is roughly the same height; read actual rendered delta
+      // by observing how much the scrollHeight grew
+      // We can't read the "before" scrollHeight here, so we store it before the update.
+      // Instead, rely on the stored height set in the previous layout pass:
+      if (listEl._prevScrollHeight != null) {
+        const delta = listEl.scrollHeight - listEl._prevScrollHeight;
+        if (delta > 0) {
+          listEl.scrollTop += delta;
+        }
+      }
+    }
+    // Store current scrollHeight for next time
+    listEl._prevScrollHeight = listEl.scrollHeight;
+  });
 
   // Clamped anchoring to button with at least 16px free space from every screen edge
   useLayoutEffect(() => {
@@ -205,13 +229,16 @@ export default function AttackLog({ records, onClear, onClickRecord, reducedMoti
             </div>
           </div>
 
-          {/* Server summary */}
+          {/* Server summary: names only, no counts, hidden when empty */}
           {serverSummary && (
-            <div className="attack-log__server-summary">{serverSummary}</div>
+            <div className="attack-log__server-summary">
+              {'Servers hit: '}
+              {serverSummary}
+            </div>
           )}
 
           {/* Record list */}
-          <div className="attack-log__list">
+          <div className="attack-log__list" ref={listRef}>
             {records.length === 0 ? (
               <div className="attack-log__empty">No attacks detected yet.</div>
             ) : (
@@ -248,4 +275,3 @@ export default function AttackLog({ records, onClear, onClickRecord, reducedMoti
     </div>
   );
 }
-

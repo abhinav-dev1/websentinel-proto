@@ -10,7 +10,7 @@
  *   - Internal double-quotes doubled ("")
  *
  * Columns (in order):
- *   time, attack_name, severity, count, attempts,
+ *   time, attack_name, severity, attempts,
  *   attacker_ip, source, target_host, target_ip, summary
  */
 
@@ -18,7 +18,6 @@ const CSV_COLUMNS = [
   'time',
   'attack_name',
   'severity',
-  'count',
   'attempts',
   'attacker_ip',
   'source',
@@ -55,7 +54,6 @@ export function toCsv(records) {
       escapeField(r.time),
       escapeField(r.attackName),
       escapeField(r.severity),
-      escapeField(r.count),
       escapeField(r.attempts),
       escapeField(r.attackerIp),
       escapeField(r.source),
