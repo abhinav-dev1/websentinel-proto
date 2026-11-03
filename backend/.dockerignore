@@ -1,0 +1,16 @@
+# Never bake secrets into the Docker image
+.env
+.env.*
+*.env
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+venv/
+.venv/
+
+# Misc
+.DS_Store
+*.log
+

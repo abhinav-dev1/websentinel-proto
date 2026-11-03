@@ -5,6 +5,7 @@ Simple rule-based detection for:
 - Port scans: N distinct ports from same source within M seconds
 - Brute force: N failed auth attempts from same source within M seconds
 - Data exfiltration: Single large outbound transfer exceeding threshold
+- Web scan: N distinct paths probed from same source within M seconds
 """
 
 import time
@@ -20,12 +21,16 @@ class ThreatDetector:
     BRUTE_FORCE_THRESHOLD = 5     # failed attempts
     BRUTE_FORCE_WINDOW = 10.0     # seconds
     EXFIL_SIZE_THRESHOLD = 50000  # KB (~50 MB)
+    WEB_SCAN_THRESHOLD = 10        # distinct paths
+    WEB_SCAN_WINDOW = 10.0         # seconds
 
     def __init__(self):
         # Track connection attempts per source IP: {ip: [(timestamp, port), ...]}
         self._port_history = defaultdict(list)
         # Track failed auth per source IP: {ip: [timestamp, ...]}
         self._auth_failures = defaultdict(list)
+        # Track path probes per source IP: {ip: [(timestamp, path), ...]}
+        self._path_history = defaultdict(list)
 
     def analyze(self, event: dict) -> dict | None:
         """
@@ -128,6 +133,43 @@ class ThreatDetector:
                     "details": (
                         f"Rule: Single outbound transfer exceeding "
                         f"{self.EXFIL_SIZE_THRESHOLD / 1000:.0f}MB threshold."
+                    ),
+                }
+
+        # ── Web Scan Detection ───────────────────────────────────────────────
+        if event_type == "path_probe":
+            # Extract path from message "GET /path -> status"
+            msg = event.get("message", "")
+            parts = msg.split()
+            path = parts[1] if len(parts) >= 2 else "/unknown"
+            self._path_history[source_ip].append((now, path))
+
+            # Prune old entries outside the window
+            self._path_history[source_ip] = [
+                (t, p) for t, p in self._path_history[source_ip]
+                if now - t <= self.WEB_SCAN_WINDOW
+            ]
+
+            distinct_paths = set(p for _, p in self._path_history[source_ip])
+            n = len(distinct_paths)
+
+            if n >= self.WEB_SCAN_THRESHOLD:
+                self._path_history[source_ip].clear()
+                return {
+                    "threat_type": "port_scan",
+                    "severity": "critical",
+                    "source_node": event.get("source_node", ""),
+                    "target_node": event.get("target_node", ""),
+                    "message": (
+                        f"PORT SCAN DETECTED — {source_ip} probed "
+                        f"{n} distinct paths in "
+                        f"{self.WEB_SCAN_WINDOW}s"
+                    ),
+                    "details": (
+                        f"Rule: ≥{self.WEB_SCAN_THRESHOLD} distinct path "
+                        f"probes from a single source within "
+                        f"{self.WEB_SCAN_WINDOW}s window. "
+                        f"Paths hit: {sorted(distinct_paths)}"
                     ),
                 }
 

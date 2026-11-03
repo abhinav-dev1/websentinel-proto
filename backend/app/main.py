@@ -12,7 +12,7 @@ import os
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -21,12 +21,18 @@ from .simulator import (
     get_base_connections,
     get_topology,
     ATTACKER_NODE,
+    DEVICES,
 )
 from .detector import ThreatDetector
+from .notifier import notify_alert, register_topology
 
 # ── Logging ──────────────────────────────────────────────────────────────────
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("websentinel")
+
+# ── API Key (optional; if set, /inject endpoints require X-API-Key header) ───
+# Read once at startup; never logged.
+WEBSENTINEL_API_KEY = os.environ.get("WEBSENTINEL_API_KEY", "")
 
 # ── State ────────────────────────────────────────────────────────────────────
 connected_clients: list[WebSocket] = []
@@ -106,6 +112,9 @@ async def injected_event_consumer():
             event["threat_type"] = threat["threat_type"]
             event["details"] = threat["details"]
             active_threats.append(event)
+            # Send email alert for Port Scan and Brute Force (not Data Exfil)
+            if threat["threat_type"] in ("port_scan", "brute_force"):
+                await notify_alert(event)
 
         await broadcast(event)
         event_queue.task_done()
@@ -115,6 +124,7 @@ async def injected_event_consumer():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Start background tasks on startup."""
+    register_topology(DEVICES)
     traffic_task = asyncio.create_task(normal_traffic_loop())
     consumer_task = asyncio.create_task(injected_event_consumer())
     logger.info("WebSentinel backend started — streaming network events")
@@ -183,14 +193,17 @@ class InjectedEvent(BaseModel):
     target_hostname: str = ""
     event_type: str = ""
     port: int = 0
+    size_kb: float = 0.0
     threat: bool = False
     severity: str = "none"
     message: str = ""
 
 
 @app.post("/inject")
-async def inject_event(event: InjectedEvent):
+async def inject_event(event: InjectedEvent, request: Request):
     """Inject an event into the broadcast stream (used by simulate_attack.py)."""
+    if WEBSENTINEL_API_KEY and request.headers.get("X-API-Key", "") != WEBSENTINEL_API_KEY:
+        raise HTTPException(status_code=401, detail="Unauthorized")
     event_dict = event.model_dump()
     if not event_dict["timestamp"]:
         event_dict["timestamp"] = datetime.now(timezone.utc).isoformat()
@@ -199,8 +212,10 @@ async def inject_event(event: InjectedEvent):
 
 
 @app.post("/inject/batch")
-async def inject_batch(events: list[InjectedEvent]):
+async def inject_batch(events: list[InjectedEvent], request: Request):
     """Inject multiple events at once."""
+    if WEBSENTINEL_API_KEY and request.headers.get("X-API-Key", "") != WEBSENTINEL_API_KEY:
+        raise HTTPException(status_code=401, detail="Unauthorized")
     for event in events:
         event_dict = event.model_dump()
         if not event_dict["timestamp"]:

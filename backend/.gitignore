@@ -1,0 +1,21 @@
+# Environment — never commit secrets
+.env
+.env.*
+*.env
+# Allow example files (contain only placeholder values)
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+venv/
+.venv/
+*.egg-info/
+dist/
+build/
+
+# Misc
+.DS_Store
+*.log
+

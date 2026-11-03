@@ -20,9 +20,10 @@ DEVICES = [
     {"id": "node-7",  "ip": "192.168.1.30",  "hostname": "nas-backup",      "type": "storage",    "role": "NAS Backup"},
     {"id": "node-8",  "ip": "192.168.1.40",  "hostname": "print-srv",       "type": "iot",        "role": "Print Server"},
     {"id": "node-9",  "ip": "192.168.1.41",  "hostname": "redis-cache",     "type": "server",     "role": "Redis Cache"},
-    {"id": "node-10", "ip": "192.168.1.50",  "hostname": "vpn-endpoint",    "type": "server",     "role": "VPN Endpoint"},
+    {"id": "node-10", "ip": "192.168.1.52",  "hostname": "vpn-endpoint",    "type": "server",     "role": "VPN Endpoint"},
     {"id": "node-11", "ip": "192.168.1.51",  "hostname": "mail-srv",        "type": "server",     "role": "Mail Server"},
     {"id": "node-12", "ip": "192.168.1.60",  "hostname": "monitoring-agent","type": "server",     "role": "Monitoring Agent"},
+    {"id": "node-13", "ip": "192.168.1.50",  "hostname": "demo-website",    "type": "server",     "role": "Student Portal"},
 ]
 
 # The attacker node — only appears when simulate_attack injects events
@@ -116,6 +117,7 @@ def get_base_connections():
         {"source": "node-12", "target": "node-2"},  # monitoring → web
         {"source": "node-12", "target": "node-3"},  # monitoring → db
         {"source": "node-12", "target": "node-4"},  # monitoring → api
+        {"source": "node-1",  "target": "node-13"}, # router → demo-website
     ]
 
 

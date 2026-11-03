@@ -157,6 +157,61 @@ Within 1–2 seconds:
 
 ---
 
+## Email Alerts
+
+WebSentinel can send an email to the owner whenever the detector raises a **Port Scan** or **Brute Force** alert. Data Exfil events do **not** trigger emails. Each alert event produces exactly one email; multiple alerts are never merged.
+
+### Setup
+
+1. **Enable Gmail 2-Step Verification** and generate an [App Password](https://myaccount.google.com/apppasswords) (16 letters, no spaces).
+
+2. Copy the example env file and fill in your values:
+
+   ```bash
+   cp backend/.env.example backend/.env
+   # then edit backend/.env — it is git-ignored
+   ```
+
+3. The three required keys are:
+
+   ```
+   ALERT_EMAIL_FROM=you@gmail.com
+   ALERT_EMAIL_PASSWORD=xxxx xxxx xxxx xxxx   # your 16-letter App Password
+   ALERT_EMAIL_TO=owner@example.com
+   ```
+
+4. **Test without a real SMTP server** — start a local debug server and run the test script:
+
+   ```bash
+   # terminal 1 — debug SMTP server (install aiosmtpd once: pip install aiosmtpd)
+   python -m aiosmtpd -n -l localhost:1025
+
+   # terminal 2 — send two sample emails
+   cd backend
+   ALERT_SMTP_HOST=localhost ALERT_SMTP_PORT=1025 ALERT_SMTP_SSL=false \
+       python send_test_email.py
+   ```
+
+### How it works
+
+- Settings are loaded from `backend/.env` at startup. A real environment variable (e.g. set on Render) always wins over the file.
+- If any required key is missing the feature is disabled at startup and a single log line is printed; the rest of the app is unaffected.
+- The SMTP call runs in a background thread with a 10-second timeout so the WebSocket and event queue are never slowed.
+- At most `ALERT_MAX_PER_MINUTE` (default 10) emails are sent per rolling 60-second window; extras are skipped and logged.
+- The password is **never** logged, printed, or included in any error message.
+
+### Security checklist
+
+| Rule | Status |
+|---|---|
+| `backend/.env` is in `.gitignore` | ✅ |
+| `backend/.env` is in `backend/.dockerignore` | ✅ |
+| `.env.example` contains only placeholders | ✅ |
+| Password stripped from all log messages | ✅ |
+| `override=False` so real env vars win | ✅ |
+
+---
+
 ## Tech Stack
 
 | Layer | Technology |
@@ -195,9 +250,36 @@ websentinel/
 │   ├── vite.config.js
 │   ├── package.json
 │   └── Dockerfile
+├── demo-website/            # Student Portal demo site + attack script
+│   ├── app.py               # FastAPI Student Portal
+│   ├── websentinel_middleware.py  # Telemetry middleware
+│   ├── attack_demo.py       # Demo attack script (brute/scan/exfil)
+│   ├── requirements.txt
+│   └── README.md
 ├── docker-compose.yml
 ├── README.md
 └── .gitignore
+
+
+---
+
+## Live Demo with the Student Portal
+
+Run the full end-to-end demo to show real traffic flowing into WebSentinel from a live site:
+
+```bash
+# Terminal 1 — WebSentinel backend
+cd backend && uvicorn app.main:app --port 8000
+
+# Terminal 2 — Student Portal demo site
+cd demo-website && pip install -r requirements.txt
+WEBSENTINEL_URL=http://localhost:8000 uvicorn app:app --port 8080
+
+# Terminal 3 — run the demo attack sequence
+cd demo-website && python attack_demo.py --type all --host http://localhost:8080
+```
+
+Open the dashboard at [http://localhost:5173](http://localhost:5173) and watch brute force, web scan, and data exfil alerts appear in real time as the attack script runs.
 
 
 
